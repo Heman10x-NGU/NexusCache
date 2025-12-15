@@ -1,0 +1,39 @@
+# Ignore build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Ignore test files
+*_test.go
+
+# Ignore IDE directories
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Ignore Docker files to prevent recursive copies
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Ignore git
+.git/
+.gitignore
+
+# Ignore documentation
+README.md
+LICENSE
+
+# Ignore old pkg directory
+pkg/
+
+# Ignore benchmark and scripts (not needed for runtime)
+benchmark/
+scripts/
+grafana/
+prometheus.yml
+
+# Ignore the springcache directory in runtime stage
+# This prevents the source directory from conflicting with the binary
