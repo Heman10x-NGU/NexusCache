@@ -1,0 +1,123 @@
+version: "3.8"
+
+services:
+  # etcd for service discovery
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.9
+    container_name: nexuscache-etcd
+    environment:
+      - ETCD_NAME=etcd0
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd:2380
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_CLUSTER=etcd0=http://etcd:2380
+    ports:
+      - "2379:2379"
+    networks:
+      - cache-network
+    healthcheck:
+      test: [ "CMD", "etcdctl", "endpoint", "health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Cache Node 1
+  svc1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nexuscache-svc1
+    environment:
+      - IP_ADDRESS=svc1
+    command: [ "--name", "svc1", "--peer", "svc1,svc2,svc3", "--etcd", "etcd:2379" ]
+    ports:
+      - "9999:9999" # HTTP API
+      - "8881:8888" # gRPC
+      - "9101:9100" # Prometheus metrics
+    networks:
+      - cache-network
+    depends_on:
+      etcd:
+        condition: service_healthy
+    restart: on-failure
+
+  # Cache Node 2
+  svc2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nexuscache-svc2
+    environment:
+      - IP_ADDRESS=svc2
+    command: [ "--name", "svc2", "--peer", "svc1,svc2,svc3", "--etcd", "etcd:2379" ]
+    ports:
+      - "9998:9999" # HTTP API
+      - "8882:8888" # gRPC
+      - "9102:9100" # Prometheus metrics
+    networks:
+      - cache-network
+    depends_on:
+      etcd:
+        condition: service_healthy
+    restart: on-failure
+
+  # Cache Node 3
+  svc3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nexuscache-svc3
+    environment:
+      - IP_ADDRESS=svc3
+    command: [ "--name", "svc3", "--peer", "svc1,svc2,svc3", "--etcd", "etcd:2379" ]
+    ports:
+      - "9997:9999" # HTTP API
+      - "8883:8888" # gRPC
+      - "9103:9100" # Prometheus metrics
+    networks:
+      - cache-network
+    depends_on:
+      etcd:
+        condition: service_healthy
+    restart: on-failure
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: nexuscache-prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    networks:
+      - cache-network
+    depends_on:
+      - svc1
+      - svc2
+      - svc3
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: nexuscache-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - cache-network
+    depends_on:
+      - prometheus
+
+networks:
+  cache-network:
+    driver: bridge
