@@ -1,0 +1,151 @@
+# NexusCache Docker Setup - Problems & Solutions (Interview Reference)
+
+This document captures all challenges faced while setting up the Docker Compose environment for the distributed cache project, and how each was resolved.
+
+---
+
+## Problem 1: etcd Image Not Found
+**Error:** `failed to resolve reference "docker.io/bitnami/etcd:3.5": not found`
+
+**Root Cause:** The bitnami/etcd:3.5 image couldn't be pulled from Docker Hub.
+
+**Solution:** Switched to the official CoreOS etcd image:
+```yaml
+# Before (broken)
+image: bitnami/etcd:3.5
+
+# After (working)
+image: quay.io/coreos/etcd:v3.5.9
+```
+
+---
+
+## Problem 2: No Go Files in Build Context
+**Error:** `no Go files in /build`
+
+**Root Cause:** The project didn't have a main.go file - it was a library-style project with example code in README but no executable entry point.
+
+**Solution:** Created a complete main.go that:
+- Initializes the cache group with test data
+- Sets up HTTP API endpoints (/api/get, /api/set, /setpeer)
+- Registers with etcd for service discovery
+- Starts the gRPC server for inter-node communication
+- Starts the Prometheus metrics server
+
+---
+
+## Problem 3: Missing go.sum Entries for Prometheus
+**Error:** `missing go.sum entry for module providing package github.com/prometheus/client_golang`
+
+**Root Cause:** Added prometheus/client_golang to go.mod but go.sum wasn't updated.
+
+**Solution:** Added `go mod tidy` step in Dockerfile before building:
+```dockerfile
+RUN go mod tidy && go build -o cache-server .
+```
+
+---
+
+## Problem 4: Binary Not Found - "no such file or directory"
+**Error:** `stat /app/nexuscache: no such file or directory`
+
+**Root Cause:** Cross-compilation settings (GOOS=linux, GOARCH=amd64) were causing issues on Windows Docker Desktop.
+
+**Solution:** Removed explicit GOOS/GOARCH and let Docker auto-detect the correct platform:
+```dockerfile
+# Before (problematic)
+ENV CGO_ENABLED=0 \
+    GOOS=linux \
+    GOARCH=amd64
+
+# After (working)
+# No explicit GOOS/GOARCH - Docker handles it automatically
+```
+
+---
+
+## Problem 5: Binary Path Created as Directory
+**Error:** `/app/nexuscache: is a directory: permission denied`
+
+**Root Cause:** There was a `nexuscache/` source directory in the project. When COPY command used a trailing slash, it created a directory instead of copying the binary.
+
+**Solution:** 
+1. Renamed the binary from `nexuscache` to `cache-server` to avoid conflict with the source directory name
+2. Created a .dockerignore file to exclude unnecessary files
+3. Used explicit destination path without trailing slash:
+```dockerfile
+COPY --from=builder /app/cache-server /app/cache-server
+```
+
+---
+
+## Problem 6: 'file' Command Not Found in Alpine
+**Error:** `/bin/sh: file: not found`
+
+**Root Cause:** Used `file` command in Dockerfile for verification, but Alpine Linux doesn't include it by default.
+
+**Solution:** Removed the `file` command verification step - it was only for debugging and not needed for production.
+
+---
+
+## Problem 7: PowerShell curl Alias Issue
+**Error:** `Invoke-WebRequest parses the content... SecurityError`
+
+**Root Cause:** In PowerShell, `curl` is an alias for `Invoke-WebRequest`, not the actual curl utility.
+
+**Solution:** Use `curl.exe` explicitly on Windows:
+```powershell
+# Instead of: curl "http://localhost:9999/api/get?key=Tom"
+# Use: curl.exe "http://localhost:9999/api/get?key=Tom"
+```
+
+---
+
+## Problem 8: Go Can't Run *_test.go Files
+**Error:** `go: cannot run *_test.go files (load_test.go)`
+
+**Root Cause:** Go treats files ending with `_test.go` as test files, and `go run` doesn't execute them.
+
+**Solution:** Renamed the file from `load_test.go` to `loadtest.go`.
+
+---
+
+## Key Learnings for Interviews
+
+### Docker Multi-Stage Builds
+- Builder stage compiles the Go binary
+- Runtime stage is minimal (Alpine ~8MB)
+- Reduces final image size from ~800MB to ~30MB
+
+### Cross-Compilation Challenges
+- Docker Desktop on Windows runs Linux containers
+- Auto-detection usually works better than explicit GOOS/GOARCH
+- CGO_ENABLED=0 ensures static linking (no glibc dependencies)
+
+### Naming Conflicts
+- Be careful of directory names matching binary names
+- Use .dockerignore to exclude source directories from runtime container
+
+### Container Orchestration
+- Use health checks for dependent services (etcd before cache nodes)
+- restart: on-failure for automatic recovery
+- Named networks for service discovery (Docker DNS)
+
+---
+
+## Commands That Helped Debug
+
+```bash
+# Check container status
+docker-compose ps
+
+# View container logs
+docker-compose logs svc1 --tail=30
+
+# Rebuild without cache
+docker-compose build --no-cache
+
+# Clean everything and start fresh
+docker-compose down -v
+docker-compose up --build -d
+```
