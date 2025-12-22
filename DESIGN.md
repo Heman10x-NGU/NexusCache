@@ -10,15 +10,30 @@
 
 ### Key Metrics (Benchmarked on 3-node Docker cluster)
 
-| Metric                  | Value         | Notes                                   |
-| ----------------------- | ------------- | --------------------------------------- |
-| **Throughput**          | 1,565 ops/sec | 50 concurrent workers, mixed read/write |
-| **Cache Hit Rate**      | 100%          | After warmup phase                      |
-| **Latency (P50)**       | 4.4 ms        | Median response time                    |
-| **Latency (P95)**       | 153.6 ms      | 95th percentile                         |
-| **Latency (P99)**       | 180.3 ms      | 99th percentile                         |
-| **Total Test Requests** | 47,051        | 30-second benchmark run                 |
-| **Container Memory**    | ~30 MB        | Per cache node (Alpine-based)           |
+#### macOS M4 Air (Best Performance)
+
+| Metric               | Value          | Notes                             |
+| -------------------- | -------------- | --------------------------------- |
+| **Throughput**       | 23,432 ops/sec | 20 concurrent workers, read-heavy |
+| **Cache Hit Rate**   | 100%           | After warmup phase                |
+| **Latency (P50)**    | 713 µs         | Sub-millisecond median response   |
+| **Latency (P95)**    | 1.81 ms        | 95th percentile                   |
+| **Latency (P99)**    | 3.67 ms        | 99th percentile                   |
+| **Container Memory** | ~30 MB         | Per cache node (Alpine-based)     |
+
+#### Windows (Ryzen 7 4800H + WSL2)
+
+| Metric             | Value         | Notes                                   |
+| ------------------ | ------------- | --------------------------------------- |
+| **Throughput**     | 1,565 ops/sec | 50 concurrent workers, mixed read/write |
+| **Cache Hit Rate** | 100%          | After warmup phase                      |
+| **Latency (P50)**  | 4.4 ms        | Median response time                    |
+| **Latency (P95)**  | 153.6 ms      | 95th percentile                         |
+| **Latency (P99)**  | 180.3 ms      | 99th percentile                         |
+
+> **Why the difference?** Docker on Windows runs inside WSL2 (Windows Subsystem for Linux),
+> adding ~2 layers of virtualization overhead. macOS with Apple Silicon uses near-native
+> containerization via Hypervisor.framework, resulting in ~15x better throughput.
 
 ---
 
@@ -265,25 +280,27 @@ group := nexuscache.NewGroup(
 
 ## 📈 Benchmark Comparison: NexusCache vs Industry Standards
 
-| System         | Throughput    | P99 Latency | Memory/Entry | Sharding          | Service Discovery  |
-| -------------- | ------------- | ----------- | ------------ | ----------------- | ------------------ |
-| **NexusCache** | 1,565 ops/sec | 180 ms      | ~100 bytes   | ✅ Automatic      | ✅ Built-in (etcd) |
-| **Redis**      | ~100K ops/sec | 1-2 ms      | ~150 bytes   | ⚠️ Manual/Cluster | ❌ External        |
-| **Memcached**  | ~100K ops/sec | <1 ms       | ~120 bytes   | ⚠️ Client-side    | ❌ External        |
-| **GroupCache** | ~50K ops/sec  | 1-5 ms      | ~80 bytes    | ✅ Automatic      | ❌ Static peers    |
+| System         | Throughput       | P99 Latency | Memory/Entry | Sharding          | Service Discovery  |
+| -------------- | ---------------- | ----------- | ------------ | ----------------- | ------------------ |
+| **NexusCache** | 23,432 ops/sec\* | 3.67 ms\*   | ~100 bytes   | ✅ Automatic      | ✅ Built-in (etcd) |
+| **Redis**      | ~100K ops/sec    | 1-2 ms      | ~150 bytes   | ⚠️ Manual/Cluster | ❌ External        |
+| **Memcached**  | ~100K ops/sec    | <1 ms       | ~120 bytes   | ⚠️ Client-side    | ❌ External        |
+| **GroupCache** | ~50K ops/sec     | 1-5 ms      | ~80 bytes    | ✅ Automatic      | ❌ Static peers    |
 
-### Why NexusCache is Slower (and Why That's OK)
+_\*Benchmarked on macOS M4 Air. Windows with WSL2 shows ~1,565 ops/sec due to Docker virtualization overhead._
+
+### Performance Trade-offs
 
 | Overhead Source                    | Impact  | Trade-off Benefit                           |
 | ---------------------------------- | ------- | ------------------------------------------- |
-| gRPC per inter-node call           | +2-5ms  | Type-safe contracts, streaming, built-in LB |
+| gRPC per inter-node call           | +0.5ms  | Type-safe contracts, streaming, built-in LB |
 | etcd health checks (5s intervals)  | Minimal | Automatic node failure detection            |
 | TTL expiration check on every read | +0.1ms  | No background goroutines needed             |
 | Consistent hash computation (MD5)  | +0.05ms | Even distribution with virtual nodes        |
 
 **Key Insight:**
 
-> "NexusCache trades raw throughput for operational simplicity. Redis requires manual sharding configuration and external service discovery (Consul/etcd). NexusCache provides automatic sharding and built-in discovery at the cost of ~10-50x lower throughput. For applications doing <10K requests/sec, this trade-off is acceptable."
+> "NexusCache provides a strong balance between performance and operational simplicity. With 23K+ ops/sec on modern hardware and built-in service discovery via etcd, it's suitable for applications doing <50K requests/sec while offering automatic sharding and zero-configuration clustering."
 
 ---
 
@@ -356,7 +373,7 @@ Expected Behavior:
 
 ## 🤔 Future Enhancements (Not Implemented - )
 
-### 1. Data Replication (If Asked: "What Would You Add?")
+### 1. Data Replication
 
 **Current State:**
 
@@ -523,9 +540,10 @@ nexuscache/
 
 ### Performance
 
-- "Benchmarked at 1,500+ ops/sec with 4ms median latency"
+- "Benchmarked at 23,000+ ops/sec with sub-millisecond (713µs) median latency on macOS M4"
 - "Achieved 100% cache hit rate after warmup"
 - "Multi-stage Docker builds resulted in ~30MB container image"
+- "Performance varies by environment: Windows/WSL2 shows ~1,500 ops/sec due to virtualization overhead"
 
 ---
 

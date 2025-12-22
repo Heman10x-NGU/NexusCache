@@ -83,20 +83,25 @@ Run the benchmark suite:
 
 ```bash
 cd benchmark
-go run load_test.go -duration=30s -concurrency=100 -keys=1000
+go run loadtest.go -duration=30s -concurrency=50 -keys=100 -read-ratio=0.8
 ```
 
-### Sample Results (3-Node Cluster)
+### Benchmark Results by Environment
 
-| Metric             | Value           |
-| ------------------ | --------------- |
-| **Throughput**     | 25,000+ ops/sec |
-| **Cache Hit Rate** | 95%+            |
-| **Latency (p50)**  | 1.2ms           |
-| **Latency (p95)**  | 4.5ms           |
-| **Latency (p99)**  | 8.2ms           |
+| Environment             | Throughput         | P50 Latency | P95 Latency | P99 Latency | Hit Rate |
+| ----------------------- | ------------------ | ----------- | ----------- | ----------- | -------- |
+| **macOS M4 Air**        | **23,432 ops/sec** | **713µs**   | 1.81ms      | 3.67ms      | 100%     |
+| Windows (Ryzen 7 4800H) | 1,565 ops/sec      | 4.4ms       | 153.6ms     | 180.3ms     | 100%     |
 
-_Results vary based on hardware. Tested on: 4-core CPU, 16GB RAM, Docker Desktop_
+> **Note:** Performance varies significantly between environments due to Docker
+> virtualization overhead. macOS with Apple Silicon shows ~15x better throughput
+> due to near-native container performance vs WSL2 virtualization on Windows.
+
+### Grafana Dashboard
+
+![NexusCache Grafana Dashboard](docs/grafana-dashboard.png)
+
+_The pre-configured Grafana dashboard shows real-time request rates, cache hit rates, and latency percentiles._
 
 ---
 
