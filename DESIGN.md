@@ -363,6 +363,7 @@ Test Setup:
 2. Hot data replicated to ALL nodes
 3. Kill 2 of 3 nodes
 
+
 Expected Behavior:
 - Hot data survives because it exists on remaining node
 - Regular keys on dead nodes → database fallback
