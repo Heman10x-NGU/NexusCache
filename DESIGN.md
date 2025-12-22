@@ -372,7 +372,7 @@ Expected Behavior:
 
 ---
 
-## 🤔 Future Enhancements (Not Implemented - )
+## 🤔 Future Enhancements 
 
 ### 1. Data Replication
 
