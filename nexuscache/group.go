@@ -3,7 +3,7 @@ package nexuscache
 import (
 	"NexusCache/connect"
 	"NexusCache/metrics"
-	"NexusCache/singleflight"
+	"golang.org/x/sync/singleflight"
 	"fmt"
 	"log"
 	"sync"
@@ -87,7 +87,7 @@ func (g *Group) Get(key string) (*ByteView, error) {
 // Load loads key either by invoking the getter locally or by sending it to another machine.
 func (g *Group) Load(key string) (value *ByteView, err error) {
 	// Wrap the actual load operation with DoOnce to ensure concurrent safety
-	view, err := g.loader.DoOnce(key, func() (interface{}, error) {
+	view, err, _ := g.loader.Do(key, func() (interface{}, error) {
 		if g.peers != nil {
 			log.Println("try to search from peers")
 			if peer, ok := g.peers.PickPeer(key); ok {
@@ -153,7 +153,7 @@ func (g *Group) Set(key string, value *ByteView, ishot bool) error {
 	if ishot {
 		return g.setHotCache(key, value)
 	}
-	_, err := g.loader.DoOnce(key, func() (interface{}, error) {
+	_, err, _ := g.loader.Do(key, func() (interface{}, error) {
 		if peer, ok := g.peers.PickPeer(key); ok {
 			err := g.setFromPeer(peer, key, value, ishot)
 			if err != nil {
@@ -178,7 +178,7 @@ func (g *Group) setHotCache(key string, value *ByteView) error {
 	if key == "" {
 		return errors.New("key is empty")
 	}
-	g.loader.DoOnce(key, func() (interface{}, error) {
+	g.loader.Do(key, func() (interface{}, error) {
 		g.hotCache.add(key, value)
 		log.Printf("NexusCache set hot cache %v \n", value.ByteSlice())
 		return nil, nil
