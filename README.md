@@ -8,7 +8,7 @@
 
 **A high-performance distributed caching system built in Go**
 
-_Inspired by GroupCache, enhanced with etcd service discovery, gRPC communication, cache expiration, and hot data replication_
+_Enhanced with etcd service discovery, gRPC communication, cache expiration, and hot data replication_
 
 [Quick Start](#quick-start) •
 [Architecture](#architecture) •
