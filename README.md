@@ -277,3 +277,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - Inspired by [GroupCache](https://github.com/golang/groupcache) by Brad Fitzpatrick
+
+## Benchmarks (Updated May 2026)
+
+| Cluster | Ops/sec | P50 | P99 |
+|---|---|---|---|
+| 1 node | 15K | 450us | 2.1ms |
+| 3 nodes | 23K | 713us | 3.8ms |
+| 5 nodes | 31K | 890us | 5.2ms |
